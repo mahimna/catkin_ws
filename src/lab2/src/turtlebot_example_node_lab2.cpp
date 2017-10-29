@@ -18,12 +18,16 @@
 #include <visualization_msgs/Marker.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <nav_msgs/MapMetaData.h>
+#include <nav_msgs/Odometry.h>
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <math.h>
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Pose.h>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/PoseWithCovariance.h>
+#include <geometry_msgs/TwistWithCovariance.h>
 
 ros::Publisher pose_publisher;
 ros::Publisher marker_pub;
@@ -202,6 +206,17 @@ void map_callback(const nav_msgs::OccupancyGrid& msg)
     //you probably want to save the map into a form which is easy to work with
 }
 
+void odom_callback(const nav_msgs::Odometry& msg)
+{
+    geometry_msgs::PoseWithCovariance pose = msg.pose;
+    geometry_msgs::TwistWithCovariance twist = msg.twist;
+
+    ROS_INFO("Position x: %f", pose.pose.position.x);
+    ROS_INFO("Position y: %f", pose.pose.position.y);
+    ROS_INFO("Velocity x: %f", twist.twist.linear.x);
+    ROS_INFO("Velocity angular: %f", twist.twist.angular.x);
+}
+
 
 int main(int argc, char **argv)
 {
@@ -214,6 +229,7 @@ int main(int argc, char **argv)
     ros::Subscriber pose_sub = n.subscribe("/gazebo/model_states", 1, pose_callback);
     ros::Subscriber map_sub = n.subscribe("/map", 1, map_callback);
     ros::Subscriber laser_sub = n.subscribe("/scan", 1, laser_callback);
+    ros::Subscriber odom_sub = n.subscribe("/odom", 1, odom_callback);
    
     //Setup topics to Publish from this node
     ros::Publisher velocity_publisher = n.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/navi", 1);
