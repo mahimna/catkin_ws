@@ -25,12 +25,15 @@
 
 ros::Publisher pose_publisher;
 ros::Publisher marker_pub;
+ros::Publisher map_pub;
 
 double ips_x;
 double ips_y;
 double ips_yaw;
 const double highprob = 85;
 const double lowprob = 15;
+
+int8_t *map_vals;
 
 short sgn(int x) { return x >= 0 ? 1 : -1; }
 
@@ -52,6 +55,8 @@ void laser_callback(const sensor_msgs::LaserScan scan)
     ROS_INFO("angle min: %f", scan.angle_min);
     ROS_INFO("angle max: %f", scan.angle_max);
     ROS_INFO("ranges: %f", scan.ranges[0]);
+    ROS_INFO("angle increment: %f", scan.angle_increment);
+    ROS_INFO("sizes: %lu", scan.ranges.size());
 }
 
 //Callback function for the Position topic (LIVE)
@@ -130,6 +135,7 @@ int main(int argc, char **argv)
     ros::Publisher velocity_publisher = n.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/navi", 1);
     pose_publisher = n.advertise<geometry_msgs::PoseStamped>("/pose", 1, true);
     marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1, true);
+    map_pub = n.advertise<nav_msgs::OccupancyGrid>("/map", 1, true);
 
     //Velocity control variable
     geometry_msgs::Twist vel;
@@ -137,6 +143,21 @@ int main(int argc, char **argv)
     //Set the loop rate
     ros::Rate loop_rate(20);    //20Hz update rate
 	
+    nav_msgs::OccupancyGrid map_grid;
+    nav_msgs::MapMetaData map_meta_data;
+
+    // Need a way to read these values from a config file
+    map_meta_data.resolution = 1;
+    map_meta_data.width = 5;
+    map_meta_data.height = 5;
+    map_vals = new int8_t [25];
+    for (int i = 0; i < 25; i++) {
+        map_vals[i] = i*4;
+    }
+    std::vector<signed char> map_vector(map_vals, map_vals+25);
+
+    map_grid.data = map_vector;
+    map_grid.info = map_meta_data;
 
     while (ros::ok())
     {
@@ -148,6 +169,8 @@ int main(int argc, char **argv)
     	vel.angular.z = 0; // set angular speed
 
     	velocity_publisher.publish(vel); // Publish the command velocity
+        map_pub.publish(map_grid);
+
     }
 
     return 0;
