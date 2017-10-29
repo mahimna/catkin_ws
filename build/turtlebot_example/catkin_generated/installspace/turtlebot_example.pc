@@ -1,8 +1,0 @@
-prefix=/home/jalaj/catkin_ws/install
-
-Name: turtlebot_example
-Description: Description of turtlebot_example
-Version: 0.0.0
-Cflags: 
-Libs: -L/home/jalaj/catkin_ws/install/lib 
-Requires: 
