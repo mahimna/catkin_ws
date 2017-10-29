@@ -21,17 +21,30 @@
 #include <sensor_msgs/LaserScan.h>
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
-
+#include <math.h>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/Pose.h>
 
 ros::Publisher pose_publisher;
 ros::Publisher marker_pub;
 ros::Publisher map_pub;
 
+nav_msgs::OccupancyGrid map_grid;
+nav_msgs::MapMetaData map_meta_data;
+
 double ips_x;
 double ips_y;
 double ips_yaw;
+double center_x = NAN;
+double center_y = NAN;
 const double highprob = 85;
 const double lowprob = 15;
+const double RESOLUTION = 0.01;
+const int HEIGHT = 10;
+const int WIDTH = 10;
+const int MAP_SIZE = int((HEIGHT/RESOLUTION)*(WIDTH/RESOLUTION));
+const int HEIGHT_STEPS = HEIGHT/RESOLUTION;
+const int WIDTH_STEPS = WIDTH/RESOLUTION;
 
 int8_t *map_vals;
 
@@ -48,15 +61,59 @@ void pose_callback(const gazebo_msgs::ModelStates& msg)
     ips_y = msg.pose[i].position.y ;
     ips_yaw = tf::getYaw(msg.pose[i].orientation);
 
+    if (isnan(center_x)) {
+        center_x = ips_x;
+    }
+
+    if (isnan(center_y)) {
+        center_y = ips_y;
+    }
 }
 
 void laser_callback(const sensor_msgs::LaserScan scan)
 {
-    ROS_INFO("angle min: %f", scan.angle_min);
-    ROS_INFO("angle max: %f", scan.angle_max);
-    ROS_INFO("ranges: %f", scan.ranges[0]);
-    ROS_INFO("angle increment: %f", scan.angle_increment);
-    ROS_INFO("sizes: %lu", scan.ranges.size());
+    double cur_angle = scan.angle_min;
+    double cur_range, body_angle, body_x, body_y, inertial_x, inertial_y;
+    int cur_index1, cur_index2, index1, index2;
+    double angle_increment = scan.angle_increment;
+    long int sizes = scan.ranges.size();
+    long int i;
+
+    if (!isnan(center_x) && !isnan(center_y)) {
+        for (i = 0; i < sizes; i++) {
+            cur_range = scan.ranges[i];
+            if (!isnan(cur_range)) { 
+                body_angle = cur_angle;
+                body_x = cur_range*cos(body_angle);
+                body_y = cur_range*sin(body_angle);
+                inertial_x = cos(ips_yaw)*body_x - sin(ips_yaw)*body_y + ips_x;
+                inertial_y = sin(ips_yaw)*body_x + cos(ips_yaw)*body_y + ips_y;
+                index1 = int(round((HEIGHT_STEPS/2) + (inertial_y - center_y)/RESOLUTION));
+                index2 = int(round((WIDTH_STEPS/2) + (inertial_x - center_x)/RESOLUTION));
+                if (index1 >= 0 && index1 < HEIGHT_STEPS && index2 >= 0 && index2 <= WIDTH_STEPS) {
+                    map_vals[index1*WIDTH_STEPS + index2] = int8_t(round((map_vals[index1*WIDTH_STEPS + index2] + 100)/2.0));
+                }
+            }
+            cur_angle += angle_increment;
+        }
+        geometry_msgs::Point origin;
+        origin.x = center_x - WIDTH/2.0;
+        origin.y = center_y - HEIGHT/2.0;
+        origin.z = 0;
+        geometry_msgs::Pose origin_pose;
+        origin_pose.position = origin;
+        map_meta_data.origin = origin_pose;
+        map_grid.info = map_meta_data;
+
+        std::vector<signed char> map_vector(map_vals, map_vals+MAP_SIZE);
+        map_grid.data = map_vector;
+        map_pub.publish(map_grid);
+    }
+    // ROS_INFO("angle min: %f", scan.angle_min);
+    // ROS_INFO("angle max: %f", scan.angle_max);
+    // ROS_INFO("ranges: %f", scan.ranges[0]);
+    // ROS_INFO("angle increment: %f", scan.angle_increment);
+    // ROS_INFO("sizes: %lu", scan.ranges.size());
 }
 
 //Callback function for the Position topic (LIVE)
@@ -142,22 +199,19 @@ int main(int argc, char **argv)
 
     //Set the loop rate
     ros::Rate loop_rate(20);    //20Hz update rate
-	
-    nav_msgs::OccupancyGrid map_grid;
-    nav_msgs::MapMetaData map_meta_data;
 
     // Need a way to read these values from a config file
-    map_meta_data.resolution = 1;
-    map_meta_data.width = 5;
-    map_meta_data.height = 5;
-    map_vals = new int8_t [25];
-    for (int i = 0; i < 25; i++) {
-        map_vals[i] = i*4;
+    map_meta_data.resolution = RESOLUTION;
+    map_meta_data.width = WIDTH_STEPS;
+    map_meta_data.height = HEIGHT_STEPS;
+    ROS_INFO("RESOLUTION %f", map_meta_data.resolution);
+    ROS_INFO("map size %d", MAP_SIZE);
+    ROS_INFO("HEIGHT_STEPS %d", HEIGHT_STEPS);
+    ROS_INFO("width %d", WIDTH_STEPS);
+    map_vals = new int8_t [MAP_SIZE];
+    for (int i = 0; i < MAP_SIZE; i++) {
+        map_vals[i] = 0;
     }
-    std::vector<signed char> map_vector(map_vals, map_vals+25);
-
-    map_grid.data = map_vector;
-    map_grid.info = map_meta_data;
 
     while (ros::ok())
     {
@@ -169,7 +223,7 @@ int main(int argc, char **argv)
     	vel.angular.z = 0; // set angular speed
 
     	velocity_publisher.publish(vel); // Publish the command velocity
-        map_pub.publish(map_grid);
+
 
     }
 
