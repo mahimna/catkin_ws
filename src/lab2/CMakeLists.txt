@@ -1,3 +1,5 @@
+set(CMAKE_CXX_FLAGS "-std=c++0x ${CMAKE_CXX_FLAGS}")
+
 cmake_minimum_required(VERSION 2.8.3)
 project(lab2)
 
@@ -107,6 +109,8 @@ include_directories(
 
 ## Declare a cpp executable
  add_executable(lab2_turtling src/turtlebot_example_node_lab2.cpp)
+ add_executable(lab2_turtling_localization src/turtlebot_example_node_lab2_localization_2.cpp)
+ add_executable(lab2_turtling_mapping_live src/turtlebot_example_node_lab2_live.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -114,6 +118,14 @@ include_directories(
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(lab2_turtling
+  ${catkin_LIBRARIES}
+ )
+
+ target_link_libraries(lab2_turtling_localization
+  ${catkin_LIBRARIES}
+ )
+
+ target_link_libraries(lab2_turtling_mapping_live
   ${catkin_LIBRARIES}
  )
 

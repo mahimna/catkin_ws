@@ -109,7 +109,7 @@ void pose_callback(const gazebo_msgs::ModelStates& msg)
     ips_yaw = tf::getYaw(msg.pose[i].orientation);
 
     // For the first time, finding the center of the grid as the initial position
-    if (isnan(center_x) || isnan(center_y)) {
+    if (std::isnan(center_x) || std::isnan(center_y)) {
         center_x = ips_x;
         center_y = ips_y;
 
@@ -138,10 +138,10 @@ void laser_callback(const sensor_msgs::LaserScan scan)
     cur_index1 = int(round((HEIGHT_STEPS/2) + (ips_y - center_y)/RESOLUTION));
     cur_index2 = int(round((WIDTH_STEPS/2) + (ips_x - center_x)/RESOLUTION));
 
-    if (!isnan(center_x) && !isnan(center_y)) {
+    if (!std::isnan(center_x) && !std::isnan(center_y)) {
         for (i = 0; i < sizes; i++) {
             cur_range = scan.ranges[i];
-            if (!isnan(cur_range)) { 
+            if (!std::isnan(cur_range)) { 
                 body_angle = cur_angle;
                 body_x = cur_range*cos(body_angle);
                 body_y = cur_range*sin(body_angle);
@@ -221,7 +221,6 @@ void odom_callback(const nav_msgs::Odometry& msg)
 int main(int argc, char **argv)
 {
 	//Initialize the ROS framework
-    ROS_INFO("here");
     ros::init(argc,argv,"main_control");
     ros::NodeHandle n;
 
