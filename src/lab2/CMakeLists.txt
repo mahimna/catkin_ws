@@ -111,6 +111,7 @@ include_directories(
  add_executable(lab2_turtling src/turtlebot_example_node_lab2.cpp)
  add_executable(lab2_turtling_localization src/turtlebot_example_node_lab2_localization_2.cpp)
  add_executable(lab2_turtling_mapping_live src/turtlebot_example_node_lab2_live.cpp)
+ add_executable(lab2_turtling_localization_live src/turtlebot_example_node_lab2_localization_2_live.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -126,6 +127,10 @@ include_directories(
  )
 
  target_link_libraries(lab2_turtling_mapping_live
+  ${catkin_LIBRARIES}
+ )
+
+target_link_libraries(lab2_turtling_localization_live
   ${catkin_LIBRARIES}
  )
 

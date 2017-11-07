@@ -166,11 +166,13 @@ void laser_callback(const sensor_msgs::LaserScan scan)
                 bres_size = indices1.size();
                 
                 for (j = 0; j < bres_size; j++) {
-                    total_index = indices1[j]*WIDTH_STEPS + indices2[j];
-                    if (map_vals[total_index] == -1) {
-                        map_vals[total_index] = 0;
+                    if (indices1[j] >= 0 && indices1[j] < HEIGHT_STEPS && indices2[j] >= 0 && indices2[j] <= WIDTH_STEPS) {
+                        total_index = indices1[j]*WIDTH_STEPS + indices2[j];
+                        if (map_vals[total_index] == -1) {
+                            map_vals[total_index] = 0;
+                        }
+                        log_map_vals[total_index] += FREE_MEASUREMENT_ODD;
                     }
-                    log_map_vals[total_index] += FREE_MEASUREMENT_ODD;
                 } 
             }
             cur_angle += angle_increment;
@@ -184,6 +186,7 @@ void laser_callback(const sensor_msgs::LaserScan scan)
         }
         std::vector<signed char> map_vector(map_vals, map_vals+MAP_SIZE);
         map_grid.data = map_vector;
+        map_grid.info.map_load_time = ros::Time::now();
         map_pub.publish(map_grid);
     }
 }
@@ -228,10 +231,10 @@ void odom_callback(const nav_msgs::Odometry& msg)
     geometry_msgs::PoseWithCovariance pose = msg.pose;
     geometry_msgs::TwistWithCovariance twist = msg.twist;
 
-    ROS_INFO("Position x: %f", pose.pose.position.x);
-    ROS_INFO("Position y: %f", pose.pose.position.y);
-    ROS_INFO("Velocity x: %f", twist.twist.linear.x);
-    ROS_INFO("Velocity angular: %f", twist.twist.angular.x);
+    // ROS_INFO("Position x: %f", pose.pose.position.x);
+    // ROS_INFO("Position y: %f", pose.pose.position.y);
+    // ROS_INFO("Velocity x: %f", twist.twist.linear.x);
+    // ROS_INFO("Velocity angular: %f", twist.twist.angular.x);
 }
 
 
@@ -242,7 +245,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     //Subscribe to the desired topics and assign callbacks
-    ros::Subscriber pose_sub = n.subscribe("/gazebo/model_states", 1, pose_callback);
+    ros::Subscriber pose_sub = n.subscribe("/indoor_pos", 1, pose_callback);
     ros::Subscriber map_sub = n.subscribe("/map", 1, map_callback);
     ros::Subscriber laser_sub = n.subscribe("/scan", 1, laser_callback);
     ros::Subscriber odom_sub = n.subscribe("/odom", 1, odom_callback);
@@ -263,6 +266,7 @@ int main(int argc, char **argv)
     map_meta_data.resolution = RESOLUTION;
     map_meta_data.width = WIDTH_STEPS;
     map_meta_data.height = HEIGHT_STEPS;
+    map_grid.header.frame_id = "1";
     ROS_INFO("RESOLUTION %f", map_meta_data.resolution);
     ROS_INFO("map size %d", MAP_SIZE);
     ROS_INFO("HEIGHT_STEPS %d", HEIGHT_STEPS);

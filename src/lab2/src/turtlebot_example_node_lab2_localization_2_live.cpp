@@ -31,6 +31,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <nav_msgs/Path.h>
 #include <random>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 
 
 ros::Publisher pose_publisher;
@@ -47,7 +48,7 @@ double ips_x;
 double ips_y;
 double ips_yaw;
 
-const int SAMPLES = 10;
+const int SAMPLES = 1000;
 const double STDDEV_LIN = 0.10; // 10 cm
 //const double STDDEV_ANG = M_PI/180/10; //0.1 deg
 const double STDDEV_ANG = 0.1; //0.1 rads
@@ -80,18 +81,149 @@ double sum (double *arr, int size)
 double getRandom () { return ((double)1.0*rand()/RAND_MAX);}
 
 //Callback function for the Position topic (SIMULATION)
-void pose_callback(const gazebo_msgs::ModelStates& msg) 
-{
+// void pose_callback(const gazebo_msgs::ModelStates& msg) 
+// {
 
+//     int i, j;
+//     double err, random;
+
+//     for(i = 0; i < msg.name.size(); i++) if(msg.name[i] == "mobile_base") break;
+
+//     ips_x = msg.pose[i].position.x ;
+//     ips_y = msg.pose[i].position.y ;
+//     ips_yaw = tf::getYaw(msg.pose[i].orientation);
+  
+//     err = distribution_lin(generator);
+//     ips_x += err;
+//     err = distribution_lin(generator);
+//     ips_y += err;
+//     err = distribution_ang(generator);
+//     ips_yaw += err;
+
+//     // Random particle prior positions, with respect to initial IPS position.
+//     if (!particles_created) {
+//         for (i = 0; i < SAMPLES; i++)
+//         {
+//             err = distribution_lin(generator);
+//             particle_x[i] = ips_x+err;
+//             err = distribution_lin(generator);
+//             particle_y[i] = ips_y+err;
+//             err = distribution_ang(generator);
+//             particle_yaw[i] = ips_yaw+err;
+//         } 
+//         particles_created = true;
+//         x_calculated = ips_x;
+//         y_calculated = ips_y;
+//         yaw_calculated = ips_yaw; 
+//     } 
+//     else {
+//         // Calculate weights.
+//         double w_x[SAMPLES];
+//         double w_y[SAMPLES];
+//         double w_yaw[SAMPLES];
+//         double temp_x[SAMPLES];
+//         double temp_y[SAMPLES];
+//         double temp_yaw[SAMPLES];
+
+//         for(i = 0; i < SAMPLES; i++)
+//         {
+//             w_x[i] = calcWeight(particle_x[i], ips_x, STDDEV_LIN);
+//             w_y[i] = calcWeight(particle_y[i], ips_y, STDDEV_LIN);
+//             w_yaw[i] = calcWeight(particle_yaw[i], ips_yaw, STDDEV_ANG);
+//         }
+
+//         // Normalize weights.
+//         double sum_x = sum(w_x, SAMPLES);
+//         double sum_y = sum(w_y, SAMPLES);
+//         double sum_yaw = sum(w_yaw, SAMPLES);
+
+//         x_calculated = 0;
+//         y_calculated = 0;
+//         yaw_calculated = 0;
+
+//         for(i = 0; i < SAMPLES; i++) 
+//         {
+//             x_calculated = w_x[i]/sum_x*particle_x[i];
+//             y_calculated = w_y[i]/sum_y*particle_y[i];
+//             yaw_calculated = w_yaw[i]/sum_yaw*particle_yaw[i];
+
+//         }
+        
+//         w_x[0] /= sum_x;
+//         w_y[0] /= sum_y;
+//         w_yaw[0] = w_yaw[0]/sum_yaw;
+//         for(i = 1; i < SAMPLES; i++)
+//         {
+//             w_x[i] = w_x[i]/sum_x + w_x[i-1];
+//             w_y[i] = w_y[i]/sum_y + w_y[i-1];
+//             w_yaw[i] = w_yaw[i]/sum_yaw + w_yaw[i-1];
+//         }
+        
+//         for (i = 0; i < SAMPLES; i++) {
+//             random = getRandom();
+//             for (j = 0; j < SAMPLES; j++)
+//             {
+//                 if (random <= w_x[j]) {
+//                     temp_x[i] = particle_x[j];
+//                     break;
+//                 }
+//             }
+
+//             random = getRandom();
+//             for (j = 0; j < SAMPLES; j++)
+//             {
+//                 if (random <= w_y[j]){
+//                     temp_y[i] = particle_y[j];
+//                     break;
+//                 }
+//             }
+//             random = getRandom();
+//             for (j = 0; j < SAMPLES; j++)
+//             {
+//                 if (random <= w_yaw[j]) {
+//                     temp_yaw[i] = particle_yaw[j];
+//                     break;      
+//                 }
+//             }
+//         }
+//         for (i = 0; i < SAMPLES; i++)
+//         {
+//             particle_x[i] = temp_x[i];
+//             particle_y[i] = temp_y[i];
+//             particle_yaw[i] = temp_yaw[i];
+//         }
+//     }
+
+//     geometry_msgs::PoseStamped position_calculated;
+//     position_calculated.pose.position.x = x_calculated;
+//     position_calculated.pose.position.y = y_calculated;
+//     position_calculated.header.stamp = ros::Time::now();
+//     path.poses.push_back(position_calculated);
+//     path_publisher.publish(path);
+
+//     points.points.clear();
+//     for (i = 0; i < SAMPLES; i++)
+//     {
+//         geometry_msgs::Point p;
+//         p.x = particle_x[i];
+//         p.y = particle_y[i];
+//         p.z = 0;
+
+//         points.points.push_back(p);
+//     }
+//     points.header.stamp = ros::Time::now();
+//     marker_pub.publish(points);
+// }
+
+void pose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg)
+{
     int i, j;
     double err, random;
 
-    for(i = 0; i < msg.name.size(); i++) if(msg.name[i] == "mobile_base") break;
+    ips_x = msg.pose.pose.position.x; // Robot X psotition
+    ips_y = msg.pose.pose.position.y; // Robot Y psotition
+    ips_yaw = tf::getYaw(msg.pose.pose.orientation); // Robot Yaw
 
-    ips_x = msg.pose[i].position.x ;
-    ips_y = msg.pose[i].position.y ;
-    ips_yaw = tf::getYaw(msg.pose[i].orientation);
-  
     err = distribution_lin(generator);
     ips_x += err;
     err = distribution_lin(generator);
@@ -101,11 +233,12 @@ void pose_callback(const gazebo_msgs::ModelStates& msg)
 
     // Random particle prior positions, with respect to initial IPS position.
     if (!particles_created) {
+        std::normal_distribution<double> distribution_lin_2(0, 1);
         for (i = 0; i < SAMPLES; i++)
         {
-            err = distribution_lin(generator);
+            err = distribution_lin_2(generator);
             particle_x[i] = ips_x+err;
-            err = distribution_lin(generator);
+            err = distribution_lin_2(generator);
             particle_y[i] = ips_y+err;
             err = distribution_ang(generator);
             particle_yaw[i] = ips_yaw+err;
@@ -199,19 +332,6 @@ void pose_callback(const gazebo_msgs::ModelStates& msg)
     position_calculated.header.stamp = ros::Time::now();
     path.poses.push_back(position_calculated);
     path_publisher.publish(path);
-
-    points.points.clear();
-    for (i = 0; i < SAMPLES; i++)
-    {
-        geometry_msgs::Point p;
-        p.x = particle_x[i];
-        p.y = particle_y[i];
-        p.z = 0;
-
-        points.points.push_back(p);
-    }
-    points.header.stamp = ros::Time::now();
-    marker_pub.publish(points);
 }
 
 void odom_callback(const nav_msgs::Odometry& msg)
@@ -222,6 +342,11 @@ void odom_callback(const nav_msgs::Odometry& msg)
     // Add the covariance values to each of the measurements?
     double angular_vel = twist.twist.angular.z;
     double linear_vel = twist.twist.linear.x;
+    double linear_error = twist.covariance[0];
+    std::normal_distribution<double> dist_vel(0, linear_error);
+    double rot_error = twist.covariance[35];
+    std::normal_distribution<double> dist_rot(0, rot_error);
+
     ros::Time cur_time = msg.header.stamp;
     if (time_set)
     {
@@ -235,12 +360,26 @@ void odom_callback(const nav_msgs::Odometry& msg)
             {
                 // Calculate next position based on input
                 // err = distribution_lin(generator);
-                particle_x[i] += linear_vel*cos(particle_yaw[i])*dt+err;
+                particle_x[i] += linear_vel*cos(particle_yaw[i])*dt+dist_vel(generator);
                 // err = distribution_lin(generator);
-                particle_y[i] += linear_vel*sin(particle_yaw[i])*dt+err;
+                particle_y[i] += linear_vel*sin(particle_yaw[i])*dt+dist_vel(generator);
                 // err = distribution_ang(generator);
-                particle_yaw[i] += angular_vel*dt+err;
+                particle_yaw[i] += angular_vel*dt+dist_rot(generator);
             }
+
+            points.points.clear();
+            for (int i = 0; i < SAMPLES; i++)
+            {
+                geometry_msgs::Point p;
+                p.x = particle_x[i];
+                p.y = particle_y[i];
+                p.z = 0;
+
+                points.points.push_back(p);
+            }
+            points.header.stamp = ros::Time::now();
+            marker_pub.publish(points);
+
         }
     } else {
         time_set = true;
@@ -257,7 +396,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     //Subscribe to the desired topics and assign callbacks
-    ros::Subscriber pose_sub = n.subscribe("/gazebo/model_states", 1, pose_callback);
+    ros::Subscriber pose_sub = n.subscribe("/indoor_pos", 1, pose_callback);
     ros::Subscriber odom_sub = n.subscribe("/odom", 1, odom_callback);
    
     //Setup topics to Publish from this node
@@ -280,8 +419,8 @@ int main(int argc, char **argv)
     points.action = visualization_msgs::Marker::ADD;
     points.pose.orientation.w = 1.0;
     points.type = visualization_msgs::Marker::POINTS;
-    points.scale.x = 0.1;
-    points.scale.y = 0.1;
+    points.scale.x = 0.5;
+    points.scale.y = 0.5;
     points.color.b = 1.0;
     points.color.a = 1.0;
 
