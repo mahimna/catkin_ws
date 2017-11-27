@@ -47,7 +47,7 @@ double ips_x;
 double ips_y;
 double ips_yaw;
 
-const int SAMPLES = 10;
+const int SAMPLES = 1000;
 const double STDDEV_LIN = 0.10; // 10 cm
 //const double STDDEV_ANG = M_PI/180/10; //0.1 deg
 const double STDDEV_ANG = 0.1; //0.1 rads
@@ -101,11 +101,12 @@ void pose_callback(const gazebo_msgs::ModelStates& msg)
 
     // Random particle prior positions, with respect to initial IPS position.
     if (!particles_created) {
+        std::normal_distribution<double> distribution_lin_2(0, 1);
         for (i = 0; i < SAMPLES; i++)
         {
-            err = distribution_lin(generator);
+            err = distribution_lin_2(generator);
             particle_x[i] = ips_x+err;
-            err = distribution_lin(generator);
+            err = distribution_lin_2(generator);
             particle_y[i] = ips_y+err;
             err = distribution_ang(generator);
             particle_yaw[i] = ips_yaw+err;
