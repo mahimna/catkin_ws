@@ -17,6 +17,23 @@
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
+#define	PADDING		2
+#define KP		0.1
+#define NUM_WAYPOINTS	3
+#define NUM_EDGES	15
+#define OFFSET_X	1.0f
+#define	OFFSET_Y	5.0f
+
+//Sim Only
+const double waypointsX[NUM_WAYPOINTS] = {4.0, 8.0, 8.0};
+const double waypointsY[NUM_WAYPOINTS] = {0.0, -4.0, 0.0};
+
+/*
+//Live Only
+const double waypointsX[NUM_WAYPOINTS] = [1.0, 3.0, 4.5];
+const double waypointsY[NUM_WAYPOINTS] = [3.0, 3.5, 0.5];
+*/
+
 ros::Publisher marker_pub;
 visualization_msgs::Marker points;
 
@@ -33,9 +50,6 @@ double *nodesY;
 uint16_t numEdges = 15;
 double *connectedEdges;
 
-double offsetX = 1.0;
-double offsetY = 5.0;
-
 double finalX = 0;
 double finalY = 0;
 
@@ -46,14 +60,11 @@ double initX = NAN;
 double initY = NAN;
 double initYaw = NAN;
 
-int plotId = 1;
+int plotId = 2;
 
 std::vector<int> shortestPath;
 uint8_t pointId = 1;
 double carrotAng = 0.0;
-double Kp = 0.1;
-
-bool turning = false;
 
 #define TAGID 0
 
@@ -111,12 +122,15 @@ void pose_callback(const geometry_msgs::PoseWithCovarianceStamped & msg)
 void pose_callback(const gazebo_msgs::ModelStates& msg)
 {
   int i;
+  geometry_msgs::Point p;
+
   for(i = 0; i < msg. name.size(); i++) if(msg.name[i] == "mobile_base") break;
 
   ipsX = msg.pose[i].position.x;
   ipsY = msg.pose[i].position.y;
   ipsYaw = tf::getYaw(msg.pose[i].orientation);
 
+  //Shift from 0-2PI to -PI-PI
   if (ipsYaw > M_PI)
     ipsYaw -= 2*M_PI;
 
@@ -127,6 +141,23 @@ void pose_callback(const gazebo_msgs::ModelStates& msg)
     initYaw = ipsYaw;
     ROS_INFO("%f %f %f", initX, initY, initYaw);
   }
+
+  points.header.frame_id = "/map";
+  points.id = 1;   //each curve must have a unique id or you will overwrite$
+  points.type = visualization_msgs::Marker::POINTS;
+  points.action = visualization_msgs::Marker::ADD;
+  points.ns = "points_and_lines";
+  points.scale.x = 0.2;
+  points.scale.y = 0.2;
+  points.color.b = 0.0;
+  points.color.r = 1.0;
+  points.color.a = 1.0;
+  points.points.clear();
+  p.x = ipsX+OFFSET_X;
+  p.y = ipsY+OFFSET_Y;
+  p.z = 0; //not used
+  points.points.push_back(p);
+  marker_pub.publish(points);
 }
 
 void plotLines()
@@ -140,6 +171,7 @@ void plotLines()
   points.scale.y = 0.1;
   points.color.b = 1.0;
   points.color.a = 1.0;
+  points.color.r = 0.0;
   points.points.clear();
   points.id = 1;
 
@@ -176,6 +208,7 @@ void plotPoints()
   points.scale.y = 0.1;
   points.color.b = 1.0;
   points.color.a = 1.0;
+  points.color.r = 0.0;
   points.points.clear();
   for(int i = 0; i < numNodes; i++)
   {
@@ -243,29 +276,24 @@ int8_t checkCollision(int i, int j)
   std::vector<int> indX;
   std::vector<int> indY;
 
-//  ROS_INFO("%d %d %d %d", x0, y0, x1, y1);
   bresenham(x0, y0, x1, y1, indX, indY);
 
   size = indX.size();
-//  ROS_INFO("%d", size);
 
   for (int k = 0; k < size; k++)
   {
-
-    for (int l = indY[k] - 2; l <= indY[k]+2; l++) {
-
-     for (int m = indX[k] - 2; m <= indX[k]+2; m++) {
+    for (int l = indY[k]-PADDING; l <= indY[k]+PADDING; l++)
+    {
+      for (int m = indX[k]-PADDING; m <= indX[k]+PADDING; m++)
+      {
         ind = l*mapHeight+m;
         if (ind >= 0 && ind < mapHeight*mapWidth && mapData[ind] == 100)
         {
-            //ROS_INFO("Edge Collides %d %d", ind, mapData[ind]);
             return 1;
         }
-        //ROS_INFO("%d %d", ind, mapData[ind]);
       }
     }
   }
-//  ROS_INFO("Edge Did Not Collide");
 
   return 0;
 
@@ -279,11 +307,8 @@ void connectEdges()
   double dists[numNodes];
   int ind[numNodes];
   connectedEdges = new double[numNodes*numNodes];
-  for (i = 0; i < numNodes; i++) {
-    for (j = 0; j < numNodes; j++) {
-      connectedEdges[i*numNodes + j] = 0;
-    }
-  }
+  for (i = 0; i < numNodes*numNodes; i++)
+    connectedEdges[i] = 0;
 
   for (i = 0; i < numNodes; i++)
   {
@@ -293,20 +318,13 @@ void connectEdges()
       ind[j] = j;
     }
     sort(dists, ind, 0, numNodes-1);
-    //ROS_INFO("%d %f %f %f %f %f", i, dists[0], dists[1], dists[2], dists[3], dists[4]);
 
-    for (j = 1; j <= numEdges; j++)
+    for (j = 1; j <= NUM_EDGES; j++)
     {
-//      ROS_INFO("%d %d", i, ind[j]);
       if(!checkCollision(i, ind[j]))
       {
         connectedEdges[i*numNodes+ind[j]] = dists[j];
         connectedEdges[ind[j]*numNodes+i] = dists[j];
-      }
-      else
-      {
-        connectedEdges[i*numNodes+ind[j]] = 0;
-        connectedEdges[ind[j]*numNodes+i] = 0;
       }
     }
   }
@@ -333,7 +351,7 @@ void removeCollisionNodes()
   free(nodesX);
   free(nodesY);
 
-  numNodes = count+4;
+  numNodes = count+NUM_WAYPOINTS+1; //Add one extra for init point
   nodesX = new double[numNodes];
   nodesY = new double[numNodes];
 
@@ -343,17 +361,14 @@ void removeCollisionNodes()
     nodesY[i] = tempY[i];
   }
 
-  nodesX[count] = initX+offsetX;
-  nodesY[count] = initY+offsetY;
+  nodesX[count] = initX+OFFSET_X;
+  nodesY[count++] = initY+OFFSET_Y;
 
-  nodesX[count+1] = 4.0+offsetX;
-  nodesY[count+1] = 0.0+offsetY;
-
-  nodesX[count+2] = 8.0+offsetX;
-  nodesY[count+2] = -4.0+offsetY;
-
-  nodesX[count+3] = 8.0+offsetX;
-  nodesY[count+3] = 0.0+offsetY;
+  for (int i = 0; i < NUM_WAYPOINTS; i++)
+  {
+    nodesX[count] = waypointsX[i]+OFFSET_X;
+    nodesY[count++] = waypointsY[i]+OFFSET_Y; 
+  }
 
   ROS_INFO("Number of nodes kept %d.", numNodes);
 }
@@ -458,11 +473,9 @@ void aStar(int startingPoint, int endingPoint){
     points.points.push_back(p);
 
     shortestPath.push_back(finalPath[i]);
-    ROS_INFO("short %d", finalPath[i]);
   }
 
   shortestPath.push_back(finalPath[0]);
-  ROS_INFO("short %d", finalPath[0]);
   marker_pub.publish(points); 
   plotId++;
   pointId = 1;
@@ -499,10 +512,10 @@ void carrot()
   ROS_INFO("carrot %d", ind1);
   ROS_INFO("%d", ind2);
 
-  double x1 = nodesX[ind1]-offsetX;
-  double y1 = nodesY[ind1]-offsetY;
-  double x2 = nodesX[ind2]-offsetX;
-  double y2 = nodesY[ind2]-offsetY;
+  double x1 = nodesX[ind1]-OFFSET_X;
+  double y1 = nodesY[ind1]-OFFSET_Y;
+  double x2 = nodesX[ind2]-OFFSET_X;
+  double y2 = nodesY[ind2]-OFFSET_Y;
 
   double dx = x2-x1;
   double dy = y2-y1;
@@ -564,19 +577,18 @@ void carrot()
       carrotAng -= 2*M_PI;
     }
 
-    carrotAng *= Kp;
+    carrotAng *= KP;
 
     ROS_INFO("%f %f %f %d", goalX, goalY, carrotAng, pointId);
-    //pointId++;
   }
-} 
+}
 
 int main(int argc, char **argv)
 {
-	//Initialize the ROS framework
+  //Initialize the ROS framework
   ros::init(argc,argv,"main_control");
   ros::NodeHandle n;
-
+  bool turning = false;
   //Subscribe to the desired topics and assign callbacks
   ros::Subscriber map_sub = n.subscribe("/map", 1, map_callback);
   // ros::Subscriber pose_sub = n.subscribe("/indoor_pos", 1, pose_callback);
@@ -586,7 +598,7 @@ int main(int argc, char **argv)
   //Setup topics to Publish from this node
   ros::Publisher velocity_publisher = n.advertise<geometry_msgs::Twist>("/cmd_vel_mux/input/navi", 1);
   marker_pub = n.advertise<visualization_msgs::Marker>("visualization_marker", 1, true);
-  
+
   //Velocity control variable
   geometry_msgs::Twist vel;
 
@@ -649,7 +661,7 @@ int main(int argc, char **argv)
         turning = false;
       }
 
-    	vel.angular.z = carrotAng; // set angular speed
+      vel.angular.z = carrotAng; // set angular speed
 
       if (!turning) {
         vel.linear.x = 0.1;
